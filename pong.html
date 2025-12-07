@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pong Rétro</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    #gameWrapper {
+      position: relative;
+    }
+
+    canvas {
+      background: #000;
+      border: 2px solid #fff;
+      display: block;
+    }
+
+    canvas.blur {
+      filter: blur(4px);
+      transition: filter 0.2s ease;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    #overlayMessage {
+      font-size: 20px;
+      margin-bottom: 12px;
+      white-space: pre-line;
+    }
+
+    #overlayBtn {
+      padding: 8px 18px;
+      font-family: monospace;
+      font-size: 16px;
+      background: #000;
+      color: #fff;
+      border: 2px solid #fff;
+      cursor: pointer;
+    }
+
+    #overlayBtn:hover {
+      background: #111;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrapper">
+    <canvas id="game" width="800" height="500"></canvas>
+    <div id="overlay" class="overlay">
+      <div id="overlayMessage">Pong Rétro\nPremier à 3</div>
+      <button id="overlayBtn">Jouer</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const overlay = document.getElementById("overlay");
+    const overlayMessage = document.getElementById("overlayMessage");
+    const overlayBtn = document.getElementById("overlayBtn");
+
+    // Dimensions
+    const paddleWidth = 10;
+    const paddleHeight = 80;
+    const ballSize = 10;
+
+    // Objets du jeu
+    const player = {
+      x: 20,
+      y: canvas.height / 2 - paddleHeight / 2,
+      score: 0,
+    };
+
+    const ai = {
+      x: canvas.width - 20 - paddleWidth,
+      y: canvas.height / 2 - paddleHeight / 2,
+      score: 0,
+    };
+
+    const ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      vx: 0,
+      vy: 0,
+    };
+
+    let gameRunning = false;
+    let gameOver = false;
+
+    // UI overlay helpers
+    function showOverlay(message, btnText) {
+      overlayMessage.textContent = message;
+      overlayBtn.textContent = btnText;
+      overlay.classList.remove("hidden");
+      canvas.classList.add("blur");
+    }
+
+    function hideOverlay() {
+      overlay.classList.add("hidden");
+      canvas.classList.remove("blur");
+    }
+
+    // Dessin
+    function drawRect(x, y, w, h) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x, y, w, h);
+    }
+
+    function drawBall() {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(ball.x, ball.y, ballSize, ballSize);
+    }
+
+    function drawCenterLine() {
+      ctx.fillStyle = "#fff";
+      for (let i = 0; i < canvas.height; i += 30) {
+        ctx.fillRect(canvas.width / 2 - 1, i, 2, 20);
+      }
+    }
+
+    function drawScore() {
+      ctx.font = "40px monospace";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.fillText(player.score, canvas.width / 2 - 60, 50);
+      ctx.fillText(ai.score, canvas.width / 2 + 60, 50);
+      ctx.textAlign = "left";
+    }
+
+    // Positions
+    function resetPositions() {
+      player.y = canvas.height / 2 - paddleHeight / 2;
+      ai.y = canvas.height / 2 - paddleHeight / 2;
+
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      ball.vx = 5 * dir;
+      ball.vy = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? -1 : 1);
+    }
+
+    function resetBall() {
+      ball.x = canvas.width / 2;
+      ball.y = canvas.height / 2;
+      const dir = ball.vx > 0 ? -1 : 1;
+      ball.vx = 5 * dir;
+      ball.vy = (Math.random() * 4 + 2) * (Math.random() < 0.5 ? -1 : 1);
+    }
+
+    function startGame() {
+      player.score = 0;
+      ai.score = 0;
+      gameOver = false;
+      gameRunning = true;
+      resetPositions();
+      hideOverlay();
+    }
+
+    function checkWin() {
+      if (player.score >= 3 || ai.score >= 3) {
+        gameOver = true;
+        gameRunning = false;
+        ball.vx = 0;
+        ball.vy = 0;
+
+        const winner = player.score >= 3 ? "Joueur" : "IA";
+        showOverlay(`${winner} gagne !`, "Rejouer");
+      } else {
+        resetBall();
+      }
+    }
+
+    // Boucle de jeu
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawCenterLine();
+
+      // Mouvement de la balle
+      if (gameRunning && !gameOver) {
+        ball.x += ball.vx;
+        ball.y += ball.vy;
+      }
+
+      // Rebond haut/bas
+      if (ball.y <= 0 || ball.y + ballSize >= canvas.height) {
+        ball.vy *= -1;
+      }
+
+      // Collision joueur
+      if (
+        ball.x <= player.x + paddleWidth &&
+        ball.x >= player.x &&
+        ball.y + ballSize >= player.y &&
+        ball.y <= player.y + paddleHeight
+      ) {
+        ball.vx = Math.abs(ball.vx);
+      }
+
+      // Collision IA
+      if (
+        ball.x + ballSize >= ai.x &&
+        ball.x + ballSize <= ai.x + paddleWidth &&
+        ball.y + ballSize >= ai.y &&
+        ball.y <= ai.y + paddleHeight
+      ) {
+        ball.vx = -Math.abs(ball.vx);
+      }
+
+      // Points
+      if (gameRunning && !gameOver) {
+        if (ball.x + ballSize < 0) {
+          ai.score++;
+          checkWin();
+        } else if (ball.x > canvas.width) {
+          player.score++;
+          checkWin();
+        }
+      }
+
+      // IA simple
+      if (gameRunning && !gameOver) {
+        const aiCenter = ai.y + paddleHeight / 2;
+        if (ball.y < aiCenter - 10) {
+          ai.y -= 4;
+        } else if (ball.y > aiCenter + 10) {
+          ai.y += 4;
+        }
+      }
+
+      // Clamp IA dans le canvas
+      if (ai.y < 0) ai.y = 0;
+      if (ai.y + paddleHeight > canvas.height) {
+        ai.y = canvas.height - paddleHeight;
+      }
+
+      // Dessin
+      drawRect(player.x, player.y, paddleWidth, paddleHeight);
+      drawRect(ai.x, ai.y, paddleWidth, paddleHeight);
+      drawBall();
+      drawScore();
+
+      requestAnimationFrame(update);
+    }
+
+    // Contrôle : raquette ne bouge que si la souris est DANS le canvas
+    canvas.addEventListener("mousemove", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseY = e.clientY - rect.top;
+      player.y = mouseY - paddleHeight / 2;
+
+      if (player.y < 0) player.y = 0;
+      if (player.y + paddleHeight > canvas.height) {
+        player.y = canvas.height - paddleHeight;
+      }
+    });
+
+    // Bouton Jouer / Rejouer (même bouton, logique différente)
+    overlayBtn.addEventListener("click", () => {
+      startGame();
+    });
+
+    // Au chargement : overlay visible + flou
+    showOverlay("Pong Rétro\nPremier à 3", "Jouer");
+
+    // Démarrer la boucle
+    update();
+  </script>
+</body>
+</html>
